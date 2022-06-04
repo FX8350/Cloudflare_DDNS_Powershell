@@ -1,4 +1,3 @@
-
 Param (
     # Hostname
     [Parameter()]
@@ -71,6 +70,11 @@ Param (
     [ValidateSet("Info", "Error")]
     $LogLevel = "Error",
 
+    # Log file name
+    [Parameter()]
+    [string]
+    $LogName,
+
     # Deley for TaskScheduler
     [Parameter()]
     [int32]
@@ -109,12 +113,12 @@ function Write-Log {
         [Switch]
         $Info
     )
-    $TimeStamp = Get-Date -Format "yyyy/MM/dd HH:mm:ss"
     if (-not(($LogLevel -eq "Error") -and ($Info))) {
         Write-Host $Message
         if ($NoLog) { return }
         $TimeStamp = Get-Date -Format "yyyy/MM/dd HH:mm:ss"
-        Write-Output "$($TimeStamp) $($Message)" | Out-File -FilePath "$($PSScriptRoot)$([System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)).log" -Append
+        if (-not($LogName)) { $LogName = "$([System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)).log" }
+        Write-Output "$($TimeStamp) $($Message)" | Out-File -FilePath "$($PSScriptRoot)$($LogName)" -Append
     }
 }
 
@@ -167,7 +171,7 @@ if (-not($UseIPv6)) {
         Exit-Script
     }
     if (($Ipv6Address) -or ($UseTemp) -or ($Ipv6Index) -or ($Ipv6Source -eq "Web")) {
-        Write-Log "IPv6用のオプションが指定されていますが、IPv6が有効化されていません。 -UseIpv6 を指定してください。"
+        Write-Log "IPv6用のパラメーターが指定されていますが、IPv6が有効化されていません。 -UseIpv6 を指定してください。"
         Exit-Script
     }
 }
@@ -196,7 +200,7 @@ function Invoke-IpAddress {
     }
     elseif ($Ip -eq "IPv6") {
         $IpUri = $CheckIpv6; $IpMatch = $Ipv6Regex; 
-        if ($UseTemp) { $Origin = "Random" } else { $Origin = "Link" }
+        if (-not($UseTemp)) { $Origin = "Link" } else { $Origin = "Random" }
     }
     if ($Address) {
         if ($Address -match $IpMatch) {
@@ -392,21 +396,23 @@ function Invoke-DDNS {
 
 # 変数の初期化
 $Counts = @{
-    "v4" = @{ 
+    "v4" = @{
         "NoUpdate" = 0
         "Update"   = 0
         "Create"   = 0
         "Error"    = 0 
     }
-    "v6" = @{ 
+    "v6" = @{
         "NoUpdate" = 0
         "Update"   = 0
         "Create"   = 0
-        "Error"    = 0
-    }
+        "Error"    = 0 
+    } 
 }
-$ErrorHostv4 = @()
-$ErrorHostv6 = @()
+$ResultHost = @{
+    "v4" = @{ "Success" = @(); "Error" = @() }
+    "v6" = @{ "Success" = @(); "Error" = @() }
+}
 
 # Get DNS record and Update
 $Hostname | ForEach-Object {
@@ -414,38 +420,41 @@ $Hostname | ForEach-Object {
         $Result = Invoke-DDNS $_ IPv4
         if ($Result.Success) {
             Write-Log "(IPv4) $($_) の処理に成功しました。" -info
-            if ($Result.NoUpdate) { $Counts.v4.NoUpdate += 1 }
-            if ($Result.UpdateRecord) { $Counts.v4.Update += 1 }
-            if ($Result.CreateRecord) { $Counts.v4.Create += 1 }
+            if ($Result.NoUpdate) { $Counts.v4.NoUpdate ++ }
+            if ($Result.UpdateRecord) { $Counts.v4.Update ++ }
+            if ($Result.CreateRecord) { $Counts.v4.Create ++ }
+            $ResultHost.v4.Success += @($_)
         }
         else {
             Write-Log "(IPv4) $($_) の処理に失敗しました。"
-            $Counts.v4.Error += 1
-            $ErrorHostv4 += @($_)
+            $Counts.v4.Error ++
+            $ResultHost.v4.Error += @($_)
         }
     }
     if ($UseIPv6) {
         $Result = Invoke-DDNS $_ IPv6
         if ($Result.Success) {
             Write-Log "(IPv6) $($_) の処理に成功しました。" -info
-            if ($Result.NoUpdate) { $Counts.v6.NoUpdate += 1 }
-            if ($Result.UpdateRecord) { $Counts.v6.Update += 1 }
-            if ($Result.CreateRecord) { $Counts.v6.Create += 1 }
+            if ($Result.NoUpdate) { $Counts.v6.NoUpdate ++ }
+            if ($Result.UpdateRecord) { $Counts.v6.Update ++ }
+            if ($Result.CreateRecord) { $Counts.v6.Create ++ }
+            $ResultHost.v6.Success += @($_)
         }
         else {
             Write-Log "(IPv6) $($_) の処理に失敗しました。"
-            $Counts.v6.Error += 1
-            $ErrorHostv6 += @($_)
+            $Counts.v6.Error ++
+            $ResultHost.v6.Error += @($_)
         }
     }
     Remove-Variable Result
 }
-Write-Log "全てのホスト($($Hostname.Count)件)の処理が終了しました。"
-if (-not($NoIpv4)) { Write-Log "(IPv4) 更新が不要なホスト数: $($Counts.v4.NoUpdate) | 更新したホスト数: $($Counts.v4.Update) | 作成したホスト数: $($Counts.v4.Create) | 失敗したホスト数: $($Counts.v4.Error) |" }
-if ($Counts.v4.Error) { Write-Log "(IPv4) 失敗したホスト名: $($ErrorHostv4)" }
-if ($UseIpv6) { Write-Log "(IPv6) 更新が不要なホスト数: $($Counts.v6.NoUpdate) | 更新したホスト数: $($Counts.v6.Update) | 作成したホスト数: $($Counts.v6.Create) | 失敗したホスト数: $($Counts.v6.Error) |" }
-if ($Counts.v6.Error) { Write-Log "(IPv6) 失敗したホスト名: $($ErrorHostv6)" }
+Write-Log "全てのホスト($($Hostname.Count)件)の処理が終了しました。" -info
+if (-not($NoIpv4)) { Write-Log "(IPv4) 更新不要: $($Counts.v4.NoUpdate) | 更新: $($Counts.v4.Update) | 作成: $($Counts.v4.Create) | 失敗: $($Counts.v4.Error) |"; Write-Host "(IPv4) ホスト名: $($ResultHost.v4.Success)" }
+if ($Counts.v4.Error) { Write-Log "(IPv4) 失敗したホスト名: $($ResultHost.v4.Error)" }
+if ($UseIpv6) { Write-Log "(IPv6) 更新不要: $($Counts.v6.NoUpdate) | 更新: $($Counts.v6.Update) | 作成: $($Counts.v6.Create) | 失敗: $($Counts.v6.Error) |"; Write-Host "(IPv6) ホスト名: $($ResultHost.v6.Success)" }
+if ($Counts.v6.Error) { Write-Log "(IPv6) 失敗したホスト名: $($ResultHost.v6.Error)" }
 Write-Log "スクリプトを終了しています..."
 Write-Log "------------------------------"
 
 if (($Counts.v4.Error) -or ($Counts.v6.Error)) { Exit 1 } else { Exit }
+
