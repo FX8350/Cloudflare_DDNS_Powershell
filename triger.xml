@@ -1,0 +1,5 @@
+<QueryList>
+  <Query Id="0" Path="Microsoft-Windows-TaskScheduler/Operational">
+    <Select Path="Microsoft-Windows-TaskScheduler/Operational">*[System[(Level=4 or Level=0) and (EventID=201)]] and Event[EventData[Data[@Name="ResultCode"]="2147942401"]] and Event[EventData[Data[@Name="TaskName"]="\Cloudflare DDNS"]]</Select>
+  </Query>
+</QueryList>
