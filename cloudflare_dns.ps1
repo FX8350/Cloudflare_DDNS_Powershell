@@ -30,17 +30,17 @@ Param (
 
     # Create New Record
     [Parameter()]
-    [Switch]
+    [switch]
     $Y,
 
     # Disable IPv4
     [Parameter()]
-    [Switch]
+    [switch]
     $NoIpv4,
 
     # Enable IPv6
     [Parameter()]
-    [Switch]
+    [switch]
     $UseIpv6,
 
     # IPv6 address Source
@@ -61,7 +61,7 @@ Param (
 
     # Disable logging
     [Parameter()]
-    [Switch]
+    [switch]
     $NoLog,
 
     # Log Level
@@ -110,7 +110,7 @@ function Write-Log {
         $Message,
 
         [Parameter()]
-        [Switch]
+        [switch]
         $Info
     )
     if (-not(($LogLevel -eq "Error") -and ($Info))) {
@@ -133,8 +133,12 @@ function Exit-Script {
 
 function Show-ApiError {
     [CmdletBinding()]
-    Param ()
-    $ErrorMessage = "Cloudflare APIからの応答が正しくありません。"
+    Param (
+        [Parameter()]
+        [string]
+        $Source
+    )
+    $ErrorMessage = "($($Source)) Cloudflare APIからの応答が正しくありません。"
     $HttpStatuCode = "HTTP ステータスコード: $($Response.StatusCode) $($Response.StatusDescription)"
     $CloudflareErrorCode = "Cloudflare エラーコード: $($ResponseBody.errors.code) $($ResponseBody.errors.message) | $($ResponseBody.errors.error_chain.code) $($ResponseBody.errors.error_chain.message)"
     Write-Log "$($ErrorMessage) $($HttpStatuCode) | $($CloudflareErrorCode)"
@@ -229,7 +233,7 @@ function Invoke-IpAddress {
                 $Address = (Get-NetIPAddress -InterfaceIndex $Ipv6Index -AddressFamily IPv6 -PrefixOrigin RouterAdvertisement -ErrorAction Stop | Where-Object { $_.SuffixOrigin -eq $Origin }).IPAddress
             }
             catch {
-                Write-Log "IPv6アドレスの取得に失敗しました。"
+                Write-Log "WindowsからのIPv6アドレスの取得に失敗しました。"
                 Write-Log "エラーメッセージ: $($_)" 
                 Exit-Script
             }
@@ -249,12 +253,8 @@ function Invoke-IpAddress {
 }
 
 # Get IP address
-if (-not($NoIpv4)) {
-    $IpAddress = Invoke-IpAddress $IpAddress IPv4
-}
-if ($UseIpv6) {
-    $Ipv6Address = Invoke-IpAddress $Ipv6Address IPv6
-}
+if (-not($NoIpv4)) { $IpAddress = Invoke-IpAddress $IpAddress IPv4 }
+if ($UseIpv6) { $Ipv6Address = Invoke-IpAddress $Ipv6Address IPv6 }
 
 
 # Get Zone ID
@@ -270,7 +270,7 @@ Catch {
 }
 $ResponseBody = $Response.Content | ConvertFrom-Json
 if (-not($ResponseBody.success)) {
-    Show-ApiError
+    Show-ApiError ZoneID
     Write-Log "Zone IDの取得に失敗しました。"
     Exit-Script
 }
@@ -313,7 +313,7 @@ function Invoke-DDNS {
     }
     $ResponseBody = $Response.Content | ConvertFrom-Json
     if (-not($ResponseBody.success)) {
-        Show-ApiError
+        Show-ApiError $Ip
         Write-Log "($($Ip)) $($Hosts) のDNSレコードの取得に失敗しました。"
         Return @{ "Success" = $false }
     }
@@ -342,7 +342,7 @@ function Invoke-DDNS {
             }
             $ResponseBody = $Response.Content | ConvertFrom-Json
             if (-not($ResponseBody.success)) {
-                Show-ApiError
+                Show-ApiError $Ip
                 Write-Log "($($Ip)) $($Hosts) のDNSレコードの作成に失敗しました。"
                 Return @{ "Success" = $false }
             }
@@ -381,7 +381,7 @@ function Invoke-DDNS {
             }
             $ResponseBody = $Response.Content | ConvertFrom-Json
             if (-not($ResponseBody.success)) {
-                Show-ApiError
+                Show-ApiError $Ip
                 Write-Log "($($Ip)) $($Hosts) のDNSレコードの更新に失敗しました。"
                 Return @{ "Success" = $false }
             }
@@ -449,12 +449,11 @@ $Hostname | ForEach-Object {
     Remove-Variable Result
 }
 Write-Log "全てのホスト($($Hostname.Count)件)の処理が終了しました。" -info
-if (-not($NoIpv4)) { Write-Log "(IPv4) 更新不要: $($Counts.v4.NoUpdate) | 更新: $($Counts.v4.Update) | 作成: $($Counts.v4.Create) | 失敗: $($Counts.v4.Error) |"; Write-Host "(IPv4) ホスト名: $($ResultHost.v4.Success)" }
+if (-not($NoIpv4)) { Write-Log "(IPv4) 更新不要: $($Counts.v4.NoUpdate) | 更新: $($Counts.v4.Update) | 作成: $($Counts.v4.Create) | 失敗: $($Counts.v4.Error) |"; Write-Log "(IPv4) ホスト名: $($ResultHost.v4.Success)" }
 if ($Counts.v4.Error) { Write-Log "(IPv4) 失敗したホスト名: $($ResultHost.v4.Error)" }
-if ($UseIpv6) { Write-Log "(IPv6) 更新不要: $($Counts.v6.NoUpdate) | 更新: $($Counts.v6.Update) | 作成: $($Counts.v6.Create) | 失敗: $($Counts.v6.Error) |"; Write-Host "(IPv6) ホスト名: $($ResultHost.v6.Success)" }
+if ($UseIpv6) { Write-Log "(IPv6) 更新不要: $($Counts.v6.NoUpdate) | 更新: $($Counts.v6.Update) | 作成: $($Counts.v6.Create) | 失敗: $($Counts.v6.Error) |"; Write-Log "(IPv6) ホスト名: $($ResultHost.v6.Success)" }
 if ($Counts.v6.Error) { Write-Log "(IPv6) 失敗したホスト名: $($ResultHost.v6.Error)" }
 Write-Log "スクリプトを終了しています..."
 Write-Log "------------------------------"
 
 if (($Counts.v4.Error) -or ($Counts.v6.Error)) { Exit 1 } else { Exit }
-
