@@ -45,7 +45,7 @@ ddo.jpの有料版が60秒、MyDNS.jpが300秒なのでこの間ぐらいを指�
 0の場合、既存のレコードのTTLをそのまま引き継ぎ、新規作成の場合は1になります。<br>
 デフォルトは0です。
 
-### -Proxied <Auto, True, Flase>
+### -Proxied <Auto, True, False>
 プロキシの有無の指定します。<br>
 True、False、Auto(後述)のいずれかの入力します。<br>
 Autoの場合は更新時は既存のレコードのProxiedをそのまま引き継ぎ、新規作成時は指定しません。<br>
