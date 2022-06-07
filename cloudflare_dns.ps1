@@ -13,15 +13,20 @@ Param (
     [ValidateRange(0, 86400)]
     $Ttl = 0,
 
+    # Proxied
+    [Parameter()]
+    [validateset("Auto", "True", "False")]
+    $Proxied = "Auto",
+
     # IPv4 address (Optional)
     [Parameter()]
     [string]
-    $IpAddress = "",
+    $IPAddr = "",
 
     # IPv6 address (Optional)
     [Parameter()]
     [string]
-    $Ipv6Address = "",
+    $IPv6Addr = "",
 
     # Cloudflare API Token
     [Parameter()]
@@ -36,23 +41,23 @@ Param (
     # Disable IPv4
     [Parameter()]
     [switch]
-    $NoIpv4,
+    $NoIPv4,
 
     # Enable IPv6
     [Parameter()]
     [switch]
-    $UseIpv6,
+    $UseIPv6,
 
     # IPv6 address Source
     [Parameter()]
     [string]
-    [ValidateSet("Powershell", "Web")]
-    $Ipv6Source = "Powershell",
+    [ValidateSet("Windows", "Web")]
+    $IPv6Source = "Windows",
     
     # Index of IPv6 address source interface
     [Parameter()]
     [int32]
-    $Ipv6Index,
+    $IPv6Index,
 
     # Use Temporary (Privacy) IPv6 address
     [Parameter()]
@@ -88,17 +93,17 @@ Param (
     # External IPv4 address API URI
     [Parameter()]
     [string]
-    $CheckIp = "https://checkip.amazonaws.com",
+    $CheckIP = "https://checkip.amazonaws.com",
 
     # External IPv6 addres API URI
     [Parameter()]
-    [String]
-    $CheckIpv6 = "https://domains.google.com/checkip"
+    [string]
+    $CheckIPv6 = "https://domains.google.com/checkip"
 )
 
 if ($Delay) {
     Write-Host "-Delay $($Delay) が指定されているため、$($Delay)秒間スクリプトの進行を停止しています。"
-    Write-Host "不要な場合は -Delay <秒数> を削除してください。このコンソール出力はログファイルには記載されません。"
+    Write-Host "不要な場合は -Delay を削除してください。このコンソール出力はログファイルには記載されません。"
     Start-Sleep -s $Delay
 }
 
@@ -170,23 +175,23 @@ if (($Ttl -lt 60) -and ($Ttl -ge 2)) {
 }
 
 if (-not($UseIPv6)) {
-    if ($NoIpv4) {
+    if ($NoIPv4) {
         Write-Log "IPv4が無効化されていますが、IPv6が有効化されていません。 最低でもどちらかを有効にしてください。"
         Exit-Script
     }
-    if (($Ipv6Address) -or ($UseTemp) -or ($Ipv6Index) -or ($Ipv6Source -eq "Web")) {
-        Write-Log "IPv6用のパラメーターが指定されていますが、IPv6が有効化されていません。 -UseIpv6 を指定してください。"
+    if (($IPv6Addr) -or ($UseTemp) -or ($IPv6Index) -or ($IPv6Source -eq "Web")) {
+        Write-Log "IPv6用のパラメーターが指定されていますが、IPv6が有効化されていません。 -UseIPv6 を指定してください。"
         Exit-Script
     }
 }
-elseif (($Ipv6Source -eq "PowerShell") -and (-not($Ipv6Index)) -and (-not($Ipv6Address))) {
+elseif (($IPv6Source -eq "Windows") -and (-not($IPv6Index)) -and (-not($IPv6Addr))) {
     Write-Log "IPv6アドレス取得に必要な情報が指定されていません。"
-    Write-Log "Windowsから取得する場合は -Ipv6Index <数字> でインターフェース番号を指定してください。"
-    Write-Log "Webから取得する場合は -Ipv6Source Web を指定してください。"
+    Write-Log "Windowsから取得する場合は -IPv6Index <数字> でインターフェース番号を指定してください。"
+    Write-Log "Webから取得する場合は -IPv6Source Web を指定してください。"
     Exit-Script
 }
 
-function Invoke-IpAddress {
+function Get-IPAddress {
     [CmdletBinding()]
     Param(
         [Parameter()]
@@ -195,42 +200,42 @@ function Invoke-IpAddress {
 
         [Parameter()]
         [string]
-        $Ip
+        $IP
     )
-    $IpRegex = "^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$"
-    $Ipv6Regex = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
-    if ($Ip -eq "IPv4") {
-        $IpUri = $CheckIp; $IpMatch = $IpRegex 
+    $IPRegex = "^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$"
+    $IPv6Regex = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
+    if ($IP -eq "IPv4") {
+        $IPUri = $CheckIP; $IPMatch = $IPRegex 
     }
-    elseif ($Ip -eq "IPv6") {
-        $IpUri = $CheckIpv6; $IpMatch = $Ipv6Regex; 
+    elseif ($IP -eq "IPv6") {
+        $IPUri = $CheckIPv6; $IPMatch = $IPv6Regex; 
         if (-not($UseTemp)) { $Origin = "Link" } else { $Origin = "Random" }
     }
     if ($Address) {
-        if ($Address -match $IpMatch) {
-            Write-Log "パラメーターに指定された$($Ip)アドレス($($Address))を使用します。" -Info
+        if ($Address -match $IPMatch) {
+            Write-Log "パラメーターに指定された$($IP)アドレス($($Address))を使用します。" -Info
             Return $Address
         }
         else {
-            Write-Log "パラメーターに指定された$($Ip)アドレス($($Address))が無効な値です。"
+            Write-Log "パラメーターに指定された$($IP)アドレス($($Address))が無効な値です。"
             Exit-Script
         }
     }
     else {
-        Write-Log "$($Ip)アドレスを取得します。" -info
-        if (($Ip -eq "IPv4") -or ($Ipv6Source -eq "Web")) {
+        Write-Log "$($IP)アドレスを取得します。" -info
+        if (($IP -eq "IPv4") -or ($IPv6Source -eq "Web")) {
             Try {
-                $Address = Invoke-RestMethod -Uri $IpUri
+                $Address = Invoke-RestMethod -Uri $IPUri
             }
             catch {
-                Write-Log "$($Ip)アドレスの取得に失敗しました。 $($IpUri) にアクセスできません。"
+                Write-Log "$($IP)アドレスの取得に失敗しました。 $($IPUri) にアクセスできません。"
                 Write-Log "エラーメッセージ: ($_)"
                 Exit-Script
             }
         }
-        elseif ($Ipv6Source -eq "PowerShell") {
+        elseif ($IPv6Source -eq "Windows") {
             try { 
-                $Address = (Get-NetIPAddress -InterfaceIndex $Ipv6Index -AddressFamily IPv6 -PrefixOrigin RouterAdvertisement -ErrorAction Stop | Where-Object { $_.SuffixOrigin -eq $Origin }).IPAddress
+                $Address = (Get-NetIPAddress -InterfaceIndex $IPv6Index -AddressFamily IPv6 -PrefixOrigin RouterAdvertisement -ErrorAction Stop | Where-Object { $_.SuffixOrigin -eq $Origin }).IPAddress
             }
             catch {
                 Write-Log "WindowsからのIPv6アドレスの取得に失敗しました。"
@@ -240,12 +245,12 @@ function Invoke-IpAddress {
         }
         $Address = $Address.ReplaceLineEndings("")
         $Address = $Address.Trim()  
-        if (($Address -match $IpMatch) -and ($Address.Count -eq 1)) {
-            Write-Log "$($Ip)アドレスの取得に成功しました。" -info
+        if (($Address -match $IPMatch) -and ($Address.Count -eq 1)) {
+            Write-Log "$($IP)アドレスの取得に成功しました。" -info
             Return $Address
         }
         else {
-            Write-Log "$($Ip)アドレスの取得に失敗しました。 有効な$($Ip)アドレスを確認できませんでした。"
+            Write-Log "$($IP)アドレスの取得に失敗しました。 有効な$($IP)アドレスを確認できませんでした。"
             Write-Log "$($Address)"
             Exit-Script
         }
@@ -253,8 +258,8 @@ function Invoke-IpAddress {
 }
 
 # Get IP address
-if (-not($NoIpv4)) { $IpAddress = Invoke-IpAddress $IpAddress IPv4 }
-if ($UseIpv6) { $Ipv6Address = Invoke-IpAddress $Ipv6Address IPv6 }
+if (-not($NoIPv4)) { $IPAddr = Get-IPAddress $IPAddr IPv4 }
+if ($UseIPv6) { $IPv6Addr = Get-IPAddress $IPv6Addr IPv6 }
 
 
 # Get Zone ID
@@ -268,7 +273,7 @@ Catch {
     Write-Log "エラーメッセージ: $($_)"
     Exit-Script
 }
-$ResponseBody = $Response.Content | ConvertFrom-Json
+$ResponseBody = $Response.Content | ConvertFrom-Json -AsHashtable
 if (-not($ResponseBody.success)) {
     Show-ApiError ZoneID
     Write-Log "Zone IDの取得に失敗しました。"
@@ -281,8 +286,9 @@ elseif (-not($ResponseBody.result.id)) {
 else {
     $ZoneId = $ResponseBody.result.id
     $ZoneName = $ResponseBody.result.name
-    $ZoneRegex = "^.*$($ZoneName.Replace(".","\."))$"
+    $ZoneRegex = "^.*$($ZoneName.Replace(".", "\."))$"
     Write-Log "Zone IDの取得に成功しました。" -info
+    Remove-Variable Response; Remove-Variable ResponseBody
 }
 
 function Invoke-DDNS {
@@ -294,99 +300,104 @@ function Invoke-DDNS {
 
         [Parameter()]
         [string]
-        $Ip
+        $IP
     )
-    Write-Log "($($Ip)) $($Hosts) の処理を開始します。" -info
+    Write-Log "($($IP)) $($Hosts) の処理を開始します。" -info
     if ($Hosts -notmatch $ZoneRegex) {
-        Write-Log "($($Ip)) $($Hosts) がゾーン名($($ZoneName))と一致しません。"
+        Write-Log "($($IP)) $($Hosts) がゾーン名($($ZoneName))と一致しません。"
         Return @{ "Success" = $false }
     }
-    if ($Ip -eq "IPv6") { $Type = "AAAA"; $IpAddr = $Ipv6Address } elseif ($Ip -eq "IPv4") { $Type = "A"; $IpAddr = $IpAddress }
+    if ($IP -eq "IPv6") { $Type = "AAAA"; $Content = $IPv6Addr } elseif ($IP -eq "IPv4") { $Type = "A"; $Content = $IPAddr }
     $RecordUri = "$($Api)/$($ZoneId)/dns_records?name=$($Hosts)&type=$($Type)"
     Try {
         $Response = Invoke-WebRequest -Method Get -Uri $RecordUri -Headers $Headers -ContentType 'application/json' -SkipHttpErrorCheck
     }
     Catch {
-        Write-Log "($($Ip)) $($Hosts) のDNSレコードの取得に失敗しました。 Cloudflare APIにアクセスできません。"
+        Write-Log "($($IP)) $($Hosts) のDNSレコードの取得に失敗しました。 Cloudflare APIにアクセスできません。"
         Write-Log "エラーメッセージ：$($_)"
         Return @{ "Success" = $false }
     }
-    $ResponseBody = $Response.Content | ConvertFrom-Json
+    $ResponseBody = $Response.Content | ConvertFrom-Json -AsHashtable
     if (-not($ResponseBody.success)) {
-        Show-ApiError $Ip
-        Write-Log "($($Ip)) $($Hosts) のDNSレコードの取得に失敗しました。"
+        Show-ApiError $IP
+        Write-Log "($($IP)) $($Hosts) のDNSレコードの取得に失敗しました。"
         Return @{ "Success" = $false }
     }
     elseif (-not($ResponseBody.result.id)) {
         if (-not($Y)) {
-            Write-Log "($($Ip)) $($Hosts) のDNSレコードが存在しません。 新たに作成するには -y を指定して再度実行してください。"
+            Write-Log "($($IP)) $($Hosts) のDNSレコードが存在しません。 新たに作成するには -Y を指定して再度実行してください。"
             Return @{ "Success" = $false }
         }
         else {
-            Write-Log "($($Ip)) $($Hosts) のDNSレコードが存在しません。 $($Ip)アドレス($($IpAddr),TTL=$($Ttl))のDNSレコードを新たに作成します。"
+            Write-Log "($($IP)) $($Hosts) のDNSレコードが存在しません。 $($IP)アドレス($($Content),TTL=$($Ttl),Proxied=$($Proxied))のDNSレコードを新たに作成します。"
             if ($Ttl -eq 0) { $CreateTtl = 1 } else { $CreateTtl = $Ttl }
             $CreateUri = "$($Api)/$($ZoneId)/dns_records"
             $Body = @{
                 "type"    = "$($Type)"
                 "name"    = "$($Hosts)"
-                "content" = "$($IpAddr)"
+                "content" = "$($Content)"
                 "ttl"     = "$($CreateTtl)"
-            } | ConvertTo-Json
+            }
+            if (-not($Proxied -eq "Auto")) {
+                if ($Proxied -eq "True") { $CreateProxied = $true }
+                elseif ($Proxied -eq "False") { $CreateProxied = $false }
+                $Body.add("proxied", $CreateProxied)
+            }
+            $Body = $Body | ConvertTo-Json
             Try {
                 $Response = Invoke-WebRequest -Uri $CreateUri -Method Post -Body $Body -Headers $Headers -ContentType 'application/json' -SkipHttpErrorCheck
             }
             Catch {
-                Write-Log "($($Ip)) $($Hosts) のDNSレコードの作成に失敗しました。 Cloudflare APIにアクセスできません。"
+                Write-Log "($($IP)) $($Hosts) のDNSレコードの作成に失敗しました。 Cloudflare APIにアクセスできません。"
                 Write-Log "エラーメッセージ: $($_)"
                 Return @{ "Success" = $false }
             }
-            $ResponseBody = $Response.Content | ConvertFrom-Json
+            $ResponseBody = $Response.Content | ConvertFrom-Json -AsHashtable
             if (-not($ResponseBody.success)) {
-                Show-ApiError $Ip
-                Write-Log "($($Ip)) $($Hosts) のDNSレコードの作成に失敗しました。"
+                Show-ApiError $IP
+                Write-Log "($($IP)) $($Hosts) のDNSレコードの作成に失敗しました。"
                 Return @{ "Success" = $false }
             }
             else {
-                Write-Log "($($Ip)) $($Hosts) のDNSレコードの作成に成功しました。" -info
+                Write-Log "($($IP)) $($Hosts) のDNSレコードの作成に成功しました。" -info
                 Return @{ "Success" = $true; "CreateRecord" = $true }
             }
         }
     }
     else {
-        $RecordId = $ResponseBody.result.id
-        $DnsRecord = $ResponseBody.result.content
-        $RecordTtl = $ResponseBody.result.ttl
-        Write-Log "($($Ip)) $($Hosts) のDNSコードIDの取得に成功しました。" -info
+        Write-Log "($($IP)) $($Hosts) のDNSコードIDの取得に成功しました。" -info
         if ($Ttl -eq 0) { $UpdateTtl = $ResponseBody.result.ttl } else { $UpdateTtl = $Ttl }
-        if (($IpAddr -eq $DnsRecord) -and ($RecordTtl -eq $UpdateTtl)) {
-            Write-Log "($($Ip)) $($Hosts) のDNSレコード($($DnsRecord),TTL=$($RecordTtl))と指定された$($Ip)アドレス($($IpAddr),TTL=$($Ttl))が一致しました。 DNSレコードの更新は必要ありません。" -info
-            Return @{ "Success" = $true; "NoUpdate" = $true }
+        if ($Proxied -eq "Auto") { $UpdateProxied = $ResponseBody.result.proxied } elseif ($Proxied -eq "True") { $UpdateProxied = $true } elseif ($Proxied -eq "flase") { $UpdateProxied = $false }
+        if (($ResponseBody.result.content -eq $Content) -and ($ResponseBody.result.ttl -eq $UpdateTtl) -and ($ResponseBody.result.proxied -eq $UpdateProxied)) {
+            Write-Log "($($IP)) $($Hosts) のDNSレコード($($ResponseBody.result.content),TTL=$($ResponseBody.result.ttl),Proxied=$($ResponseBody.result.proxied))と指定された$($IP)アドレス($($Content),TTL=$($Ttl),Proxied=$($Proxied))が一致しました。 DNSレコードの更新は必要ありません。" -info
+            Return @{ "Success" = 1; "NoUpdate" = 1 }
         }
         else {
-            Write-Log "($($Ip)) $($Hosts) のDNSレコード($($DnsRecord),TTL=$($RecordTtl))と$($Ip)アドレス($($IpAddr),TTL=$($Ttl))が一致しません。 DNSレコードの更新を行います。"
-            $UpdateUri = "$($Api)/$($ZoneId)/dns_records/$($RecordId)"
+            Write-Log "($($IP)) $($Hosts) のDNSレコード($($ResponseBody.result.content),TTL=$($ResponseBody.result.ttl),Proxied=$($ResponseBody.result.proxied))と指定された$($IP)アドレス($($Content),TTL=$($Ttl),Proxied=$($Proxied))が一致しません。 DNSレコードの更新を行います。"
+            $UpdateUri = "$($Api)/$($ZoneId)/dns_records/$($ResponseBody.result.id)"
             $Body = @{
                 "type"    = "$($Type)"
                 "name"    = "$($Hosts)"
-                "content" = "$($IpAddr)"
+                "content" = "$($Content)"
                 "ttl"     = "$($UpdateTtl)"
+                "proxied" = $UpdateProxied
             } | ConvertTo-Json
             Try {
                 $Response = Invoke-WebRequest -Uri $UpdateUri -Method Put -Body $Body -Headers $Headers -ContentType 'application/json' -SkipHttpErrorCheck
             }
             Catch {
-                Write-Log "($($Ip)) $($Hosts) のDNSレコードの更新に失敗しました。 Cloudflare APIにアクセスできません。"
+                Write-Log "($($IP)) $($Hosts) のDNSレコードの更新に失敗しました。 Cloudflare APIにアクセスできません。"
                 Write-Log "エラーメッセージ: $($_)"
                 Return @{ "Success" = $false }
             }
-            $ResponseBody = $Response.Content | ConvertFrom-Json
+            $ResponseBody = $Response.Content | ConvertFrom-Json -AsHashtable
             if (-not($ResponseBody.success)) {
-                Show-ApiError $Ip
-                Write-Log "($($Ip)) $($Hosts) のDNSレコードの更新に失敗しました。"
+                Show-ApiError $IP
+                Write-Log "($($IP)) $($Hosts) のDNSレコードの更新に失敗しました。"
                 Return @{ "Success" = $false }
             }
             else {
-                Write-Log "($($Ip)) $($Hosts) のDNSレコードの更新に成功しました。" -info
+                Write-Log "($($IP)) $($Hosts) のDNSレコードの更新に成功しました。" -info
                 Return @{ "Success" = $true; "UpdateRecord" = $true }
             }
 
@@ -416,7 +427,7 @@ $ResultHost = @{
 
 # Get DNS record and Update
 $Hostname | ForEach-Object {
-    if (-not($NoIpv4)) { 
+    if (-not($NoIPv4)) { 
         $Result = Invoke-DDNS $_ IPv4
         if ($Result.Success) {
             Write-Log "(IPv4) $($_) の処理に成功しました。" -info
@@ -449,10 +460,16 @@ $Hostname | ForEach-Object {
     Remove-Variable Result
 }
 Write-Log "全てのホスト($($Hostname.Count)件)の処理が終了しました。" -info
-if (-not($NoIpv4)) { Write-Log "(IPv4) 更新不要: $($Counts.v4.NoUpdate) | 更新: $($Counts.v4.Update) | 作成: $($Counts.v4.Create) | 失敗: $($Counts.v4.Error) |"; Write-Log "(IPv4) ホスト名: $($ResultHost.v4.Success)" }
-if ($Counts.v4.Error) { Write-Log "(IPv4) 失敗したホスト名: $($ResultHost.v4.Error)" }
-if ($UseIpv6) { Write-Log "(IPv6) 更新不要: $($Counts.v6.NoUpdate) | 更新: $($Counts.v6.Update) | 作成: $($Counts.v6.Create) | 失敗: $($Counts.v6.Error) |"; Write-Log "(IPv6) ホスト名: $($ResultHost.v6.Success)" }
-if ($Counts.v6.Error) { Write-Log "(IPv6) 失敗したホスト名: $($ResultHost.v6.Error)" }
+if (-not($NoIPv4)) { 
+    Write-Log "(IPv4) 更新不要: $($Counts.v4.NoUpdate) | 更新: $($Counts.v4.Update) | 作成: $($Counts.v4.Create) | 失敗: $($Counts.v4.Error) |"
+    if ($ResultHost.v4.Success) { Write-Log "(IPv4) ホスト名: $($ResultHost.v4.Success)" }
+    if ($Counts.v4.Error) { Write-Log "(IPv4) 失敗したホスト名: $($ResultHost.v4.Error)" }
+}
+if ($UseIPv6) {
+    Write-Log "(IPv6) 更新不要: $($Counts.v6.NoUpdate) | 更新: $($Counts.v6.Update) | 作成: $($Counts.v6.Create) | 失敗: $($Counts.v6.Error) |" 
+    if ($ResultHost.v6.Success) { Write-Log "(IPv6) ホスト名: $($ResultHost.v6.Success)" }
+    if ($Counts.v6.Error) { Write-Log "(IPv6) 失敗したホスト名: $($ResultHost.v6.Error)" }
+}
 Write-Log "スクリプトを終了しています..."
 Write-Log "------------------------------"
 
