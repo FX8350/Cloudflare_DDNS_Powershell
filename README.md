@@ -15,7 +15,7 @@ Powershell 7でしか動かないみたいです
 4. スクリプトを直接編集するか、パラメータを指定してコンソールからスクリプトを起動し動作を確認する
 6. タスクスケジューラに5分ごとぐらいで起動するようにしておく
 
-* 例: `.\cloudflare_dns.ps1 -Hostname "hogehoge.net","test.hogehoge.net" -TTl 120 -Token "hogefuga"`
+* 例: `.\cloudflare_dns.ps1 -Hostname "hogehoge.net" -TTl 120 -Token "hogefuga"`
 
 * `triger.xml`はイベントビューアのカスタムフィルターです。<br>
 `TaskName`の部分を自分で作ったタスク名に変更してトリガーとしてタスクスケジューラに登録すれば、エラーが発生した時に指定したプログラムやスクリプトを起動する事ができます。<br>
@@ -49,8 +49,8 @@ ddo.jpの有料版が60秒、MyDNS.jpが300秒なのでこの間ぐらいを指�
 デフォルトは0です。
 
 ### -Proxied <Auto, True, False>
-プロキシの有無の指定します。<br>
-Auto、True、False、のいずれかの入力します。<br>
+Cloudflareのプロキシ(CDN)の有無の指定します。<br>
+Auto、True、False、のいずれかの入力します。自宅サーバーでDNSのみの利用する場合はAutoかFalseで良いかと思います。<br>
 Autoの場合は更新時は既存のレコードのProxiedの値をそのまま引き継ぎ、新規作成時は指定しません。<br>
 指定なしの場合、2022年6月時点では無効となるようです。<br>
 [APIのドキュメント](https://api.cloudflare.com/#dns-records-for-a-zone-update-dns-record)によればTTLと異なり必須パラメーターでは無いのでこのような処理となっています。<br>
@@ -107,7 +107,8 @@ WindowsからIPv6アドレスを取得する際、一時IPv6アドレスを利�
 ### -LogLevel <Error, Info>
 Infoを指定するとより詳細なログを表示します。<br>
 コンソールでの表示も変わります。<br>
-デフォルトはErrorです。
+デフォルトはErrorです。<br>
+スクリプト内の`Write-Log`の行の末尾に`-info`をつけるとInfo使いになってログを減らす事ができます。
 
 ### -LogName <名前>
 ログファイルの名前を指定します。<br>
